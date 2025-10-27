@@ -1,8 +1,10 @@
-param keyVaultName string
-param location string = resourceGroup().location
-param createKeyvault bool = true
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01'=if(createKeyvault){
+@description('Name of the Key Vault to create')
+param keyVaultName string
+@description('Location for the Key Vault')
+param location string = resourceGroup().location
+
+resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01'={
   location: location
   name: keyVaultName
 
