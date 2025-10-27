@@ -1,0 +1,55 @@
+trigger: none
+parameters:
+  - name: azureServiceConnection
+    type: string
+    default: 'MyServiceConnection'
+  - name: resourceGroupName
+    type: string
+    default: 'myResourceGroup'
+  - name: bicepFile
+    type: string
+    default: 'modules/Keyvault/keyVault.bicep'
+  - name: parametersFile
+    type: string
+    default: 'modules/Keyvault/keyVault-nonProd.json'
+
+jobs:
+- job: ValidateThenDeploy
+  pool:
+    vmImage: ubuntu-latest
+  steps:
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: 'Bicep build -> compiled.json'
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          mkdir -p $(Build.ArtifactStagingDirectory)/temp
+          az bicep build --file "${{ parameters.bicepFile }}" --outdir $(Build.ArtifactStagingDirectory)/temp
+          echo "Compiled: $(Build.ArtifactStagingDirectory)/temp/$(basename ${{ parameters.bicepFile }} .bicep).json"
+
+    - task: AzureCLI@2
+      displayName: 'ARM validate'
+      inputs:
+        azureSubscription: ${{ parameters.azureServiceConnection }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az deployment group validate \
+            --resource-group "${{ parameters.resourceGroupName }}" \
+            --template-file "$(Build.ArtifactStagingDirectory)/temp/$(basename ${{ parameters.bicepFile }} .bicep).json" \
+            --parameters @"${{ parameters.parametersFile }}"
+
+    - task: AzureResourceManagerTemplateDeployment@3
+      displayName: 'Deploy compiled template (ARM task)'
+      inputs:
+        deploymentScope: 'Resource Group'
+        azureResourceManagerConnection: ${{ parameters.azureServiceConnection }}
+        resourceGroupName: ${{ parameters.resourceGroupName }}
+        templateLocation: 'Linked artifact'
+        csmFile: '$(Build.ArtifactStagingDirectory)/temp/$(basename ${{ parameters.bicepFile }} .bicep).json'
+        csmParametersFile: ${{ parameters.parametersFile }}
+        deploymentMode: 'Incremental'
