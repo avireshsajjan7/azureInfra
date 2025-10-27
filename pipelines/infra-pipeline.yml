@@ -1,0 +1,34 @@
+trigger: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: 'AZUREINFRA'
+      ref: refs/heads/main
+
+variables:
+  - templates: variables/lower-environment-variables
+
+agents:
+  pool:
+    vmImage: 'ubuntu-latest'
+
+stages:
+  - stage: Deploy
+    displayName: 'Deploy Infrastructure'
+    jobs:
+      - job: DeployInfra
+        displayName: 'Deploy Infrastructure Job'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - checkout: templates
+          - template: templates/infra-deploy-template.yml@templates
+            parameters:
+              environment: 'lower'
+              resourceGroupName: 'myResourceGroup'
+              location: 'eastus'
+              templateFile: 'templates/azuredeploy.json'
+              parametersFile: 'templates/azuredeploy.parameters.json'      
