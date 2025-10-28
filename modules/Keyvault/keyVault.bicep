@@ -4,6 +4,9 @@ param keyVaultName string
 @description('Location for the Key Vault')
 param location string = resourceGroup().location
 
+@description('Access policies for the Key Vault')
+param accessPolicies array
+
 resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01'={
   location: location
   name: keyVaultName
@@ -14,7 +17,13 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01'={
       family: 'A'
     }
     tenantId: subscription().tenantId
-    accessPolicies: []
+    accessPolicies: [
+      for accessPolicy in accessPolicies: {
+        tenantId: subscription().tenantId
+        objectId: accessPolicy.objectId
+        permissions: accessPolicy.permissions
+      }
+    ]
     enabledForDeployment: true    
     enabledForTemplateDeployment: true
     enabledForDiskEncryption: true      
@@ -28,6 +37,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01'={
     }
     softDeleteRetentionInDays: 90
     enablePurgeProtection: true
-    enableSoftDelete: true       
+    enableSoftDelete: true  
+         
   }
 }
