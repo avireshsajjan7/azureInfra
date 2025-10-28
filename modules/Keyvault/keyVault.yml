@@ -1,55 +1,73 @@
 trigger: none
+
 parameters:
+
   - name: azureServiceConnection
     type: string
     default: 'MyServiceConnection'
-  - name: resourceGroupName
+
+  - name: environment
+    displayName: 'Deployment Environment'
     type: string
-    default: 'myResourceGroup'
-  - name: bicepFile
-    type: string
-    default: 'modules/Keyvault/keyVault.bicep'
-  - name: parametersFile
-    type: string
-    default: 'modules/Keyvault/keyVault-nonProd.json'
+    default: 'nonProd'
+    values:
+      - nonProd
+      - prod
 
-jobs:
-- job: ValidateThenDeploy
-  pool:
-    vmImage: ubuntu-latest
-  steps:
-    - checkout: self
+pool:
+  vmImage: 'ubuntu-latest'
 
-    - task: AzureCLI@2
-      displayName: 'Bicep build -> compiled.json'
-      inputs:
-        azureSubscription: ${{ parameters.azureServiceConnection }}
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          mkdir -p $(Build.ArtifactStagingDirectory)/temp
-          az bicep build --file "${{ parameters.bicepFile }}" --outdir $(Build.ArtifactStagingDirectory)/temp
-          echo "Compiled: $(Build.ArtifactStagingDirectory)/temp/$(basename ${{ parameters.bicepFile }} .bicep).json"
+variables:
+  - template: /vars/${{ parameters.environment }}-vars.yml
+  - name: pipelineType
+    value: 'Infrastructure'
 
-    - task: AzureCLI@2
-      displayName: 'ARM validate'
-      inputs:
-        azureSubscription: ${{ parameters.azureServiceConnection }}
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          az deployment group validate \
-            --resource-group "${{ parameters.resourceGroupName }}" \
-            --template-file "$(Build.ArtifactStagingDirectory)/temp/$(basename ${{ parameters.bicepFile }} .bicep).json" \
-            --parameters @"${{ parameters.parametersFile }}"
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: azureInfra/templates
 
-    - task: AzureResourceManagerTemplateDeployment@3
-      displayName: 'Deploy compiled template (ARM task)'
-      inputs:
-        deploymentScope: 'Resource Group'
-        azureResourceManagerConnection: ${{ parameters.azureServiceConnection }}
-        resourceGroupName: ${{ parameters.resourceGroupName }}
-        templateLocation: 'Linked artifact'
-        csmFile: '$(Build.ArtifactStagingDirectory)/temp/$(basename ${{ parameters.bicepFile }} .bicep).json'
-        csmParametersFile: ${{ parameters.parametersFile }}
-        deploymentMode: 'Incremental'
+stages:
+  - stage: DeployKeyVault
+    displayName: 'Deploy Key Vault'
+    jobs:
+      - job: Deploy
+        displayName: 'Deploy Key Vault to $(environment)'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - script: |
+              az bicep build --file modules/Keyvault/keyVault.bicep --outdir modules/Keyvault/
+            name: LintBicepCode
+            displayName: 'IaC Linter - Bicep Build'
+
+          - task: AzureCLI@2
+            name: RunPreFlightChecks
+            displayName: 'Run Pre-Flight Checks'
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "Running pre-flight checks..."
+                # Add your pre-flight check commands here
+                az deployment group validate \
+                  --resource-group $(resourceGroupName) \
+                  --template-file modules/Keyvault/keyVault.json \
+                  --parameters modules/Keyvault/keyVault-$(environment)-parameters.json
+
+          - task: AzureCLI@2
+            name: DeployKeyVault
+            displayName: 'Deploy Key Vault'
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "Deploying Key Vault..."
+                az deployment group create \
+                  --resource-group $(resourceGroupName) \
+                  --template-file modules/Keyvault/keyVault.json \
+                  --parameters modules/Keyvault/keyVault-$(environment)-parameters.json
