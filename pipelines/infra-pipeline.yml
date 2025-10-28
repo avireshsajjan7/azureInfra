@@ -1,34 +1,42 @@
 trigger: none
 
+parameters:
+  - name: azureServiceConnection
+    type: string
+    values:
+      - 'AzureServiceConnection1'
+      - 'AzureServiceConnection2'
+
+  - name: environment
+    type: string
+    default: 'nonProd'
+    values:
+      - nonProd
+      - prod
+
 resources:
   repositories:
     - repository: templates
       type: git
-      name: 'AZUREINFRA'
-      ref: refs/heads/main
+      name: azureInfra/templates
 
 variables:
-  - templates: variables/lower-environment-variables
+  - templates: /vars/${{ parameters.environment }}-vars.yml
 
 agents:
   pool:
     vmImage: 'ubuntu-latest'
 
 stages:
-  - stage: Deploy
-    displayName: 'Deploy Infrastructure'
+  - stage: Deploy_keyVault
+    displayName: 'Deploy keyVault'
     jobs:
-      - job: DeployInfra
-        displayName: 'Deploy Infrastructure Job'
+      - job: Deploy_keyVault
+        displayName: 'Deploy keyVault'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - checkout: self
-          - checkout: templates
-          - template: templates/infra-deploy-template.yml@templates
+          - template: modules/Keyvault/keyVault.yml
             parameters:
-              environment: 'lower'
-              resourceGroupName: 'myResourceGroup'
-              location: 'eastus'
-              templateFile: 'templates/azuredeploy.json'
-              parametersFile: 'templates/azuredeploy.parameters.json'      
+              environment: ${{ parameters.environment }}
+              azureServiceConnection: ${{ parameters.azureServiceConnection }} 

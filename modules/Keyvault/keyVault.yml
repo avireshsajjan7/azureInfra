@@ -4,15 +4,11 @@ parameters:
 
   - name: azureServiceConnection
     type: string
-    default: 'MyServiceConnection'
 
   - name: environment
     displayName: 'Deployment Environment'
     type: string
     default: 'nonProd'
-    values:
-      - nonProd
-      - prod
 
 pool:
   vmImage: 'ubuntu-latest'
