@@ -51,7 +51,7 @@ stages:
                 # Add your pre-flight check commands here
                 az deployment group validate \
                   --resource-group $(resourceGroupName) \
-                  --template-file modules/Keyvault/keyVault.json \
+                  --template-file modules/Keyvault/keyVault.bicep \
                   --parameters modules/Keyvault/keyVault-$(environment)-parameters.json
 
           - task: AzureCLI@2
@@ -65,5 +65,5 @@ stages:
                 echo "Deploying Key Vault..."
                 az deployment group create \
                   --resource-group $(resourceGroupName) \
-                  --template-file modules/Keyvault/keyVault.json \
+                  --template-file modules/Keyvault/keyVault.bicep \
                   --parameters modules/Keyvault/keyVault-$(environment)-parameters.json
