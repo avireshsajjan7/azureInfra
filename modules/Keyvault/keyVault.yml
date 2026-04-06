@@ -1,7 +1,6 @@
 trigger: none
 
 parameters:
-
   - name: azureServiceConnection
     type: string
 
